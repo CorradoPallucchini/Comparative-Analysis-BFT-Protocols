@@ -1,0 +1,66 @@
+services:
+  node1:
+    image: hyperledger/besu:latest
+    environment:
+      - BESU_PUBLIC_KEY_DIRECTORY=/config/networkFiles/keys/0
+    volumes:
+      - ./config/networkFiles:/config/networkFiles
+    command: >
+      --genesis-file=/config/networkFiles/genesis.json
+      --node-private-key-file=/config/networkFiles/keys/0/key
+      --rpc-http-enabled --rpc-http-api=ETH,NET,IBFT,QBFT,WEB3
+      --rpc-http-host=0.0.0.0 --rpc-http-port=8545
+      --p2p-port=30303
+      --static-nodes-file=/config/networkFiles/static-nodes.json
+      --sync-min-peers=1
+    ports:
+      - "8545:8545"
+    networks:
+      besu_net:
+        ipv4_address: 172.16.239.10
+
+  node2:
+    image: hyperledger/besu:latest
+    volumes:
+      - ./config/networkFiles:/config/networkFiles
+    command: >
+      --genesis-file=/config/networkFiles/genesis.json
+      --node-private-key-file=/config/networkFiles/keys/1/key
+      --p2p-port=30304
+      --static-nodes-file=/config/networkFiles/static-nodes.json
+      --sync-min-peers=1
+    networks:
+      - besu_net
+
+  node3:
+    image: hyperledger/besu:latest
+    volumes:
+      - ./config/networkFiles:/config/networkFiles
+    command: >
+      --genesis-file=/config/networkFiles/genesis.json
+      --node-private-key-file=/config/networkFiles/keys/2/key
+      --p2p-port=30305
+      --static-nodes-file=/config/networkFiles/static-nodes.json
+      --sync-min-peers=1
+    networks:
+      - besu_net
+
+  node4:
+    image: hyperledger/besu:latest
+    volumes:
+      - ./config/networkFiles:/config/networkFiles
+    command: >
+      --genesis-file=/config/networkFiles/genesis.json
+      --node-private-key-file=/config/networkFiles/keys/3/key
+      --p2p-port=30306
+      --static-nodes-file=/config/networkFiles/static-nodes.json
+      --sync-min-peers=1
+    networks:
+      - besu_net
+
+networks:
+  besu_net:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.16.239.0/24
