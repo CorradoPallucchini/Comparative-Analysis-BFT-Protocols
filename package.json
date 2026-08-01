@@ -1,0 +1,12 @@
+{
+  "name": "bft-benchmark",
+  "version": "1.0.0",
+  "description": "Benchmark script for BFT protocols",
+  "main": "benchmark.js",
+  "scripts": {
+    "start": "node benchmark.js"
+  },
+  "dependencies": {
+    "ethers": "^6.13.0"
+  }
+}
