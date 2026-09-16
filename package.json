@@ -4,6 +4,8 @@
   "description": "Benchmark script for BFT protocols",
   "main": "benchmark.js",
   "scripts": {
+    "generate": "node scripts/generate_network.js",
+    "benchmark": "node benchmark.js",
     "start": "node benchmark.js"
   },
   "dependencies": {
