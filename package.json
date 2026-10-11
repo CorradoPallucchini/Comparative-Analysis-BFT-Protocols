@@ -3,10 +3,14 @@
   "version": "1.0.0",
   "description": "Benchmark script for BFT protocols",
   "main": "benchmark.js",
+  "engines": {
+    "node": ">=18"
+  },
   "scripts": {
     "generate": "node scripts/generate_network.js",
     "benchmark": "node benchmark.js",
-    "start": "node benchmark.js"
+    "start": "node benchmark.js",
+    "test": "node --test"
   },
   "dependencies": {
     "ethers": "^6.13.0"
