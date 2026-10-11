@@ -1,55 +1,107 @@
 services:
-
   node1:
-    image: hyperledger/besu:latest
+    image: hyperledger/besu:26.8.1
     container_name: bft_node1
     restart: unless-stopped
     volumes:
-      - ./config/networkFiles:/config/networkFiles
-    command: >
-      --data-path=/opt/besu/data --genesis-file=/config/networkFiles/genesis.json --node-private-key-file=/config/networkFiles/keys/0x0a775328f3a8d94048795ebf72c65e0c6d089d09/key --rpc-http-enabled=true --rpc-http-api=ETH,NET,QBFT,WEB3 --rpc-http-host=0.0.0.0 --rpc-http-port=8545 --rpc-http-cors-origins=* --p2p-host=172.16.239.10 --p2p-port=30303 --static-nodes-file=/config/networkFiles/static-nodes.json
+      - ./config/networkFiles:/config/networkFiles:ro
+    command:
+      - "--data-path=/opt/besu/data"
+      - "--genesis-file=/config/networkFiles/genesis.json"
+      - "--node-private-key-file=/config/networkFiles/keys/0x05f7d16757ef0fd5ef0dbe093fa4b92da69d8387/key"
+      - "--static-nodes-file=/config/networkFiles/static-nodes.json"
+      - "--p2p-host=172.16.239.10"
+      - "--p2p-port=30303"
+      - "--rpc-http-enabled=true"
+      - "--rpc-http-api=ETH,NET,WEB3,TXPOOL,QBFT"
+      - "--rpc-http-host=0.0.0.0"
+      - "--rpc-http-port=8545"
+      - "--rpc-http-cors-origins=*"
+      - "--host-allowlist=*"
+      - "--tx-pool-max-future-by-sender=1000"
+    ports:
+      - "127.0.0.1:8545:8545"
     networks:
       besu_net:
         ipv4_address: 172.16.239.10
-    ports:
-      - "8545:8545"
 
   node2:
-    image: hyperledger/besu:latest
+    image: hyperledger/besu:26.8.1
     container_name: bft_node2
     restart: unless-stopped
     volumes:
-      - ./config/networkFiles:/config/networkFiles
-    command: >
-      --data-path=/opt/besu/data --genesis-file=/config/networkFiles/genesis.json --node-private-key-file=/config/networkFiles/keys/0x515a5e4c0b9fa4d919e35bdceed0d1e537cc3f62/key --rpc-http-enabled=true --rpc-http-api=ETH,NET,QBFT,WEB3 --rpc-http-host=0.0.0.0 --rpc-http-port=8545 --rpc-http-cors-origins=* --p2p-host=172.16.239.11 --p2p-port=30303 --static-nodes-file=/config/networkFiles/static-nodes.json
+      - ./config/networkFiles:/config/networkFiles:ro
+    command:
+      - "--data-path=/opt/besu/data"
+      - "--genesis-file=/config/networkFiles/genesis.json"
+      - "--node-private-key-file=/config/networkFiles/keys/0x2661adc4643cb029070cac057fbf7d5b123f78d3/key"
+      - "--static-nodes-file=/config/networkFiles/static-nodes.json"
+      - "--p2p-host=172.16.239.11"
+      - "--p2p-port=30303"
+      - "--rpc-http-enabled=true"
+      - "--rpc-http-api=ETH,NET,WEB3,TXPOOL,QBFT"
+      - "--rpc-http-host=0.0.0.0"
+      - "--rpc-http-port=8545"
+      - "--rpc-http-cors-origins=*"
+      - "--host-allowlist=*"
+      - "--tx-pool-max-future-by-sender=1000"
+    ports:
+      - "127.0.0.1:8546:8545"
     networks:
       besu_net:
         ipv4_address: 172.16.239.11
 
   node3:
-    image: hyperledger/besu:latest
+    image: hyperledger/besu:26.8.1
     container_name: bft_node3
     restart: unless-stopped
     volumes:
-      - ./config/networkFiles:/config/networkFiles
-    command: >
-      --data-path=/opt/besu/data --genesis-file=/config/networkFiles/genesis.json --node-private-key-file=/config/networkFiles/keys/0x888869b1733379d16e61da6e2d485c11c57acc86/key --rpc-http-enabled=true --rpc-http-api=ETH,NET,QBFT,WEB3 --rpc-http-host=0.0.0.0 --rpc-http-port=8545 --rpc-http-cors-origins=* --p2p-host=172.16.239.12 --p2p-port=30303 --static-nodes-file=/config/networkFiles/static-nodes.json
+      - ./config/networkFiles:/config/networkFiles:ro
+    command:
+      - "--data-path=/opt/besu/data"
+      - "--genesis-file=/config/networkFiles/genesis.json"
+      - "--node-private-key-file=/config/networkFiles/keys/0x5bddc80c911b6373e0f774848e263c472211927d/key"
+      - "--static-nodes-file=/config/networkFiles/static-nodes.json"
+      - "--p2p-host=172.16.239.12"
+      - "--p2p-port=30303"
+      - "--rpc-http-enabled=true"
+      - "--rpc-http-api=ETH,NET,WEB3,TXPOOL,QBFT"
+      - "--rpc-http-host=0.0.0.0"
+      - "--rpc-http-port=8545"
+      - "--rpc-http-cors-origins=*"
+      - "--host-allowlist=*"
+      - "--tx-pool-max-future-by-sender=1000"
+    ports:
+      - "127.0.0.1:8547:8545"
     networks:
       besu_net:
         ipv4_address: 172.16.239.12
 
   node4:
-    image: hyperledger/besu:latest
+    image: hyperledger/besu:26.8.1
     container_name: bft_node4
     restart: unless-stopped
     volumes:
-      - ./config/networkFiles:/config/networkFiles
-    command: >
-      --data-path=/opt/besu/data --genesis-file=/config/networkFiles/genesis.json --node-private-key-file=/config/networkFiles/keys/0xf0af2c89eb91cb74089f573bf49f6c946f87764c/key --rpc-http-enabled=true --rpc-http-api=ETH,NET,QBFT,WEB3 --rpc-http-host=0.0.0.0 --rpc-http-port=8545 --rpc-http-cors-origins=* --p2p-host=172.16.239.13 --p2p-port=30303 --static-nodes-file=/config/networkFiles/static-nodes.json
+      - ./config/networkFiles:/config/networkFiles:ro
+    command:
+      - "--data-path=/opt/besu/data"
+      - "--genesis-file=/config/networkFiles/genesis.json"
+      - "--node-private-key-file=/config/networkFiles/keys/0xaf0a036681985938ba16a2e923b759f842409c6f/key"
+      - "--static-nodes-file=/config/networkFiles/static-nodes.json"
+      - "--p2p-host=172.16.239.13"
+      - "--p2p-port=30303"
+      - "--rpc-http-enabled=true"
+      - "--rpc-http-api=ETH,NET,WEB3,TXPOOL,QBFT"
+      - "--rpc-http-host=0.0.0.0"
+      - "--rpc-http-port=8545"
+      - "--rpc-http-cors-origins=*"
+      - "--host-allowlist=*"
+      - "--tx-pool-max-future-by-sender=1000"
+    ports:
+      - "127.0.0.1:8548:8545"
     networks:
       besu_net:
         ipv4_address: 172.16.239.13
-
 
 networks:
   besu_net:

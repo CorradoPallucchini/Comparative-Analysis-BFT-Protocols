@@ -1,0 +1,41 @@
+{
+  "generatedAt": "2026-10-11T10:10:32.384Z",
+  "consensus": "qbft",
+  "nodes": 4,
+  "faultTolerance": 1,
+  "blockPeriodSeconds": 1,
+  "requestTimeoutSeconds": 4,
+  "chainId": 1337,
+  "besuImage": "hyperledger/besu:26.8.1",
+  "txPoolMaxFutureBySender": 1000,
+  "fundedAccounts": 64,
+  "mnemonic": "test test test test test test test test test test test junk",
+  "rpcUrls": [
+    "http://127.0.0.1:8545",
+    "http://127.0.0.1:8546",
+    "http://127.0.0.1:8547",
+    "http://127.0.0.1:8548"
+  ],
+  "validators": [
+    {
+      "node": "node1",
+      "address": "0x05f7d16757ef0fd5ef0dbe093fa4b92da69d8387",
+      "ip": "172.16.239.10"
+    },
+    {
+      "node": "node2",
+      "address": "0x2661adc4643cb029070cac057fbf7d5b123f78d3",
+      "ip": "172.16.239.11"
+    },
+    {
+      "node": "node3",
+      "address": "0x5bddc80c911b6373e0f774848e263c472211927d",
+      "ip": "172.16.239.12"
+    },
+    {
+      "node": "node4",
+      "address": "0xaf0a036681985938ba16a2e923b759f842409c6f",
+      "ip": "172.16.239.13"
+    }
+  ]
+}
