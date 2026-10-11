@@ -1,185 +1,153 @@
+'use strict';
+
+/**
+ * Generates a Hyperledger Besu BFT network (genesis, validator keys,
+ * static-nodes.json, docker-compose.yaml and a network.json manifest that the
+ * benchmark reads).
+ *
+ *   node scripts/generate_network.js --nodes 4 --consensus qbft --block-period 1
+ */
+
 const fs = require('fs');
 const path = require('path');
-const { execSync } = require('child_process');
+const { execFileSync } = require('child_process');
 
-const args = process.argv.slice(2);
-function getArg(name, defaultValue) {
-    const idx = args.indexOf(name);
-    return idx !== -1 && args[idx + 1] ? args[idx + 1] : defaultValue;
-}
+const { parseOptions, formatHelp } = require('../src/cli');
+const { deriveWallets, TEST_MNEMONIC } = require('../src/accounts');
+const {
+    CONSENSUS, MAX_NODES, nodeIp, buildGeneratorConfig, buildStaticNodes,
+    renderCompose, rpcUrls, faultTolerance,
+} = require('../src/network');
 
-const nodeCount = parseInt(getArg('--nodes', '4'), 10);
-const consensus = getArg('--consensus', 'qbft'); // qbft or ibft2
-const blockPeriod = parseInt(getArg('--block-period', '1'), 10);
+const DEFAULT_BESU_VERSION = '26.8.1';
 
-console.log(`\n⚙️  Generating BFT Network:`);
-console.log(`- Nodes: ${nodeCount}`);
-console.log(`- Consensus: ${consensus.toUpperCase()}`);
-console.log(`- Block Period: ${blockPeriod}s\n`);
-
-const rootDir = path.resolve(__dirname, '..');
-const configDir = path.join(rootDir, 'config');
-const networkFilesDir = path.join(configDir, 'networkFiles');
-
-if (fs.existsSync(networkFilesDir)) {
-    fs.rmSync(networkFilesDir, { recursive: true, force: true });
-}
-fs.mkdirSync(networkFilesDir, { recursive: true });
-
-// Pre-funded test accounts
-const fundedAccounts = {
-    "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266": { "balance": "0x1000000000000000000000000000000000000000000000000000000000000000" },
-    "0x70997970C51812dc3A010C7d01b50e0d17dc79C8": { "balance": "0x1000000000000000000000000000000000000000000000000000000000000000" },
-    "0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC": { "balance": "0x1000000000000000000000000000000000000000000000000000000000000000" },
-    "0x90F79bf6EB2c4f870365E785982E1f101E93b906": { "balance": "0x1000000000000000000000000000000000000000000000000000000000000000" },
-    "0xE483B25EBf35F3551C525a8FDbBeE10E4b2C23C8": { "balance": "0x1000000000000000000000000000000000000000000000000000000000000000" },
-    "0x5D3f5BC433281a81aA7eC81Ee34607f4Af1f5f81": { "balance": "0x1000000000000000000000000000000000000000000000000000000000000000" }
+const SPECS = {
+    'nodes': { type: 'int', min: 1, max: MAX_NODES, default: 4, description: 'Number of validator nodes' },
+    'consensus': { type: 'enum', values: Object.keys(CONSENSUS), default: 'qbft', description: 'Consensus protocol (qbft | ibft2)' },
+    'block-period': { type: 'int', min: 1, default: 1, description: 'Block period in seconds' },
+    'request-timeout': { type: 'int', min: 1, default: 4, description: 'Round timeout in seconds (requesttimeoutseconds)' },
+    'accounts': { type: 'int', min: 1, max: 10000, default: 64, description: 'Number of pre-funded sender accounts' },
+    'chain-id': { type: 'int', min: 1, default: 1337, description: 'Chain id' },
+    'besu-version': { type: 'string', env: 'BESU_VERSION', default: DEFAULT_BESU_VERSION, description: 'hyperledger/besu image tag (pinned for reproducibility)' },
+    'rpc-base-port': { type: 'int', min: 1, max: 65535 - MAX_NODES, default: 8545, description: 'Host port of node1 RPC; nodeN uses base + N - 1' },
+    'tx-pool-max-future-by-sender': { type: 'int', min: 1, default: 1000, description: 'Besu --tx-pool-max-future-by-sender' },
 };
 
-const consensusConfig = {};
-if (consensus === 'qbft') {
-    consensusConfig.qbft = {
-        blockperiodseconds: blockPeriod,
-        epochlength: 30000,
-        requesttimeoutseconds: 4
-    };
-} else {
-    consensusConfig.ibft2 = {
-        blockperiodseconds: blockPeriod,
-        epochlength: 30000,
-        requesttimeoutseconds: 4
-    };
-}
-
-const besuConfig = {
-    genesis: {
-        nonce: "0x0",
-        timestamp: "0x58ee40ba",
-        gasLimit: "0x1fffffffffffff",
-        difficulty: "0x1",
-        mixHash: "0x63746963616c2062797a616e74696e65206661756c7420746f6c6572616e6365",
-        coinbase: "0x0000000000000000000000000000000000000000",
-        config: {
-            chainId: 1337,
-            londonBlock: 0,
-            ...consensusConfig
-        },
-        alloc: fundedAccounts
-    },
-    blockchain: {
-        nodes: {
-            generate: true,
-            count: nodeCount
-        }
+function main() {
+    const opts = parseOptions(SPECS);
+    if (opts.help) {
+        console.log(formatHelp('Usage: node scripts/generate_network.js [options]', SPECS));
+        return;
     }
-};
 
-const configFile = path.join(configDir, 'generatorConfig.json');
-fs.writeFileSync(configFile, JSON.stringify(besuConfig, null, 2));
+    const besuImage = `hyperledger/besu:${opts['besu-version']}`;
+    const f = faultTolerance(opts.nodes);
 
-console.log('📦 Running official Besu operator to generate genesis and keys...');
-const dockerCmd = `docker run --rm --entrypoint /bin/bash -v "${configDir}":/opt/besu/config hyperledger/besu:latest -c "besu operator generate-blockchain-config --config-file=/opt/besu/config/generatorConfig.json --to=/tmp/out --private-key-file-name=key && cp -r /tmp/out/* /opt/besu/config/networkFiles/"`;
-execSync(dockerCmd, { stdio: 'inherit' });
+    console.log('\n⚙️  Generating BFT network:');
+    console.log(`- Consensus      : ${CONSENSUS[opts.consensus].name} (${opts.consensus})`);
+    console.log(`- Validators     : ${opts.nodes} (tolerates f = ${f} faulty node${f === 1 ? '' : 's'})`);
+    console.log(`- Block period   : ${opts['block-period']}s`);
+    console.log(`- Funded accounts: ${opts.accounts}`);
+    console.log(`- Besu image     : ${besuImage}\n`);
+    if (opts.nodes < 4) {
+        console.warn(`⚠️  With ${opts.nodes} validator(s) the network tolerates no Byzantine fault (BFT needs n >= 3f + 1 = 4).\n`);
+    }
+    if (opts.consensus === 'ibft2') {
+        console.warn('ℹ️  Besu supports IBFT 2.0 for existing networks but recommends QBFT for new ones.\n');
+    }
 
-fs.unlinkSync(configFile);
+    const rootDir = path.resolve(__dirname, '..');
+    const configDir = path.join(rootDir, 'config');
+    const networkFilesDir = path.join(configDir, 'networkFiles');
+    const stagingDir = path.join(configDir, '.generator-out');
 
-const keysDir = path.join(networkFilesDir, 'keys');
-const validatorDirs = fs.readdirSync(keysDir).filter(f => fs.statSync(path.join(keysDir, f)).isDirectory());
-
-if (validatorDirs.length !== nodeCount) {
-    throw new Error(`Expected ${nodeCount} keys but found ${validatorDirs.length}`);
-}
-
-const staticNodes = [];
-const nodeKeyMap = [];
-
-validatorDirs.forEach((dirName, index) => {
-    const pubKeyPath = path.join(keysDir, dirName, 'key.pub');
-    let pubKey = fs.readFileSync(pubKeyPath, 'utf8').trim();
-    if (pubKey.startsWith('0x')) pubKey = pubKey.substring(2);
-    
-    const ip = `172.16.239.${10 + index}`;
-    const enode = `enode://${pubKey}@${ip}:30303`;
-    staticNodes.push(enode);
-    
-    nodeKeyMap.push({
-        index: index + 1,
-        address: dirName,
-        ip: ip,
-        keyDir: `keys/${dirName}`
+    const fundedAddresses = deriveWallets(opts.accounts).map(w => w.address);
+    const generatorConfig = buildGeneratorConfig({
+        consensus: opts.consensus,
+        nodes: opts.nodes,
+        blockPeriod: opts['block-period'],
+        requestTimeout: opts['request-timeout'],
+        chainId: opts['chain-id'],
+        fundedAddresses,
     });
-});
 
-fs.writeFileSync(path.join(networkFilesDir, 'static-nodes.json'), JSON.stringify(staticNodes, null, 2));
-console.log(`✅ Created static-nodes.json with ${staticNodes.length} enodes.`);
+    fs.rmSync(stagingDir, { recursive: true, force: true });
+    const configFile = path.join(configDir, 'generatorConfig.json');
+    fs.writeFileSync(configFile, JSON.stringify(generatorConfig, null, 2));
 
-console.log('🐳 Generating docker-compose.yaml...');
-let composeServices = {};
+    console.log('📦 Running "besu operator generate-blockchain-config"...');
+    // Run as the host user so generated files are not owned by root, and bypass
+    // the image entrypoint: when started as root it runs Besu twice (a
+    // permission-probing pass first), which makes `operator` fail on the
+    // second run with "Output directory already exists".
+    const userArgs = typeof process.getuid === 'function' ? ['--user', `${process.getuid()}:${process.getgid()}`] : [];
+    try {
+        execFileSync('docker', [
+            'run', '--rm', ...userArgs,
+            '--entrypoint', '/opt/besu/bin/besu',
+            '-v', `${configDir}:/opt/besu/config`,
+            besuImage,
+            'operator', 'generate-blockchain-config',
+            '--config-file=/opt/besu/config/generatorConfig.json',
+            '--to=/opt/besu/config/.generator-out',
+            '--private-key-file-name=key',
+        ], { stdio: 'inherit' });
+    } finally {
+        fs.rmSync(configFile, { force: true });
+    }
 
-nodeKeyMap.forEach((node) => {
-    const serviceName = `node${node.index}`;
-    const isPrimaryRpc = node.index === 1;
-    
-    composeServices[serviceName] = {
-        image: 'hyperledger/besu:latest',
-        container_name: `bft_${serviceName}`,
-        restart: 'unless-stopped',
-        volumes: [
-            './config/networkFiles:/config/networkFiles'
-        ],
-        command: [
-            `--data-path=/opt/besu/data`,
-            `--genesis-file=/config/networkFiles/genesis.json`,
-            `--node-private-key-file=/config/networkFiles/${node.keyDir}/key`,
-            `--rpc-http-enabled=true`,
-            // Besu names the IBFT 2.0 JSON-RPC namespace "IBFT"; "IBFT2" makes the node refuse to start.
-            `--rpc-http-api=ETH,NET,${consensus === 'ibft2' ? 'IBFT' : 'QBFT'},WEB3`,
-            `--rpc-http-host=0.0.0.0`,
-            `--rpc-http-port=8545`,
-            `--rpc-http-cors-origins=*`,
-            `--p2p-host=${node.ip}`,
-            `--p2p-port=30303`,
-            `--static-nodes-file=/config/networkFiles/static-nodes.json`
-        ].join(' '),
-        networks: {
-            besu_net: {
-                ipv4_address: node.ip
-            }
-        }
+    // Only replace the previous network once generation has succeeded.
+    fs.rmSync(networkFilesDir, { recursive: true, force: true });
+    fs.renameSync(stagingDir, networkFilesDir);
+
+    const keysDir = path.join(networkFilesDir, 'keys');
+    const validators = fs.readdirSync(keysDir)
+        .filter(d => fs.statSync(path.join(keysDir, d)).isDirectory())
+        .sort()
+        .map(address => ({
+            address,
+            publicKey: fs.readFileSync(path.join(keysDir, address, 'key.pub'), 'utf8').trim(),
+        }));
+    if (validators.length !== opts.nodes) {
+        throw new Error(`Expected ${opts.nodes} validator keys but found ${validators.length}`);
+    }
+
+    fs.writeFileSync(path.join(networkFilesDir, 'static-nodes.json'), JSON.stringify(buildStaticNodes(validators), null, 2) + '\n');
+
+    const compose = renderCompose({
+        consensus: opts.consensus,
+        besuImage,
+        rpcBasePort: opts['rpc-base-port'],
+        txPoolMaxFutureBySender: opts['tx-pool-max-future-by-sender'],
+        validators,
+    });
+    fs.writeFileSync(path.join(rootDir, 'docker-compose.yaml'), compose);
+
+    const manifest = {
+        generatedAt: new Date().toISOString(),
+        consensus: opts.consensus,
+        nodes: opts.nodes,
+        faultTolerance: f,
+        blockPeriodSeconds: opts['block-period'],
+        requestTimeoutSeconds: opts['request-timeout'],
+        chainId: opts['chain-id'],
+        besuImage,
+        txPoolMaxFutureBySender: opts['tx-pool-max-future-by-sender'],
+        fundedAccounts: opts.accounts,
+        mnemonic: TEST_MNEMONIC,
+        rpcUrls: rpcUrls(opts.nodes, opts['rpc-base-port']),
+        validators: validators.map((v, i) => ({ node: `node${i + 1}`, address: v.address, ip: nodeIp(i) })),
     };
-    
-    if (isPrimaryRpc) {
-        composeServices[serviceName].ports = ["8545:8545"];
-    }
-});
+    fs.writeFileSync(path.join(networkFilesDir, 'network.json'), JSON.stringify(manifest, null, 2) + '\n');
 
-const dockerCompose = {
-    version: '3.8',
-    services: composeServices,
-    networks: {
-        besu_net: {
-            driver: 'bridge',
-            ipam: {
-                config: [
-                    { subnet: '172.16.239.0/24' }
-                ]
-            }
-        }
-    }
-};
+    console.log(`✅ Wrote genesis, ${validators.length} validator keys, static-nodes.json and network.json`);
+    console.log('✅ Wrote docker-compose.yaml');
+    console.log('\n🎉 Setup complete! Start the network with:\n   docker compose up -d\n');
+}
 
-const yamlContent = [
-  "services:",
-  ...Object.entries(composeServices).map(([name, s]) => {
-    let out = `  ${name}:\n    image: ${s.image}\n    container_name: ${s.container_name}\n    restart: ${s.restart}\n    volumes:\n      - ./config/networkFiles:/config/networkFiles\n    command: >\n      ${s.command}\n    networks:\n      besu_net:\n        ipv4_address: ${s.networks.besu_net.ipv4_address}`;
-    if (s.ports) {
-      out += `\n    ports:\n      - "${s.ports[0]}"`;
-    }
-    return out;
-  }),
-  "\nnetworks:\n  besu_net:\n    driver: bridge\n    ipam:\n      config:\n        - subnet: 172.16.239.0/24\n"
-].join('\n\n');
-
-fs.writeFileSync(path.join(rootDir, 'docker-compose.yaml'), yamlContent);
-console.log('✅ Generated docker-compose.yaml successfully!\n');
-console.log('🎉 Setup complete! You can now run:\n   docker compose up -d\n');
+try {
+    main();
+} catch (err) {
+    console.error(`❌ ${err.message}`);
+    process.exit(1);
+}
