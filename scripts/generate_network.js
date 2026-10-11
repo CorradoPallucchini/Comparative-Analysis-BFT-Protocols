@@ -132,7 +132,8 @@ nodeKeyMap.forEach((node) => {
             `--genesis-file=/config/networkFiles/genesis.json`,
             `--node-private-key-file=/config/networkFiles/${node.keyDir}/key`,
             `--rpc-http-enabled=true`,
-            `--rpc-http-api=ETH,NET,${consensus.toUpperCase()},WEB3`,
+            // Besu names the IBFT 2.0 JSON-RPC namespace "IBFT"; "IBFT2" makes the node refuse to start.
+            `--rpc-http-api=ETH,NET,${consensus === 'ibft2' ? 'IBFT' : 'QBFT'},WEB3`,
             `--rpc-http-host=0.0.0.0`,
             `--rpc-http-port=8545`,
             `--rpc-http-cors-origins=*`,
